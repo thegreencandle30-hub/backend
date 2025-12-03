@@ -1,0 +1,188 @@
+import User from '../models/User.js';
+import Call from '../models/Call.js';
+import Payment from '../models/Payment.js';
+import { catchAsync } from '../utils/helpers.js';
+
+/**
+ * Get dashboard overview stats
+ * GET /api/admin/dashboard/stats
+ */
+export const getDashboardStats = catchAsync(async (req, res) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  
+  // Get first day of current month
+  const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  
+  // Run all queries in parallel
+  const [
+    totalUsers,
+    activeUsers,
+    activeSubscriptions,
+    todayCalls,
+    monthlyRevenue,
+    callStats,
+  ] = await Promise.all([
+    // Total users
+    User.countDocuments(),
+    
+    // Active users (not disabled)
+    User.countDocuments({ isActive: true }),
+    
+    // Active subscriptions
+    User.countDocuments({
+      'subscription.isActive': true,
+      'subscription.endDate': { $gt: new Date() },
+    }),
+    
+    // Today's calls count
+    Call.countDocuments({
+      date: { $gte: today, $lt: tomorrow },
+    }),
+    
+    // Monthly revenue
+    Payment.aggregate([
+      {
+        $match: {
+          status: 'completed',
+          createdAt: { $gte: firstDayOfMonth },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: '$amount' },
+        },
+      },
+    ]),
+    
+    // Call performance stats
+    Call.aggregate([
+      {
+        $group: {
+          _id: null,
+          totalCalls: { $sum: 1 },
+          hitTarget: {
+            $sum: { $cond: [{ $eq: ['$status', 'hit_target'] }, 1, 0] },
+          },
+          hitStoploss: {
+            $sum: { $cond: [{ $eq: ['$status', 'hit_stoploss'] }, 1, 0] },
+          },
+        },
+      },
+    ]),
+  ]);
+
+  // Calculate accuracy
+  const stats = callStats[0] || { totalCalls: 0, hitTarget: 0, hitStoploss: 0 };
+  const completedCalls = stats.hitTarget + stats.hitStoploss;
+  const accuracy = completedCalls > 0 
+    ? ((stats.hitTarget / completedCalls) * 100).toFixed(2) 
+    : 0;
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      totalUsers,
+      activeUsers,
+      activeSubscriptions,
+      todayCalls,
+      monthlyRevenue: monthlyRevenue[0]?.total || 0,
+      callAccuracy: parseFloat(accuracy),
+      totalCalls: stats.totalCalls,
+    },
+  });
+});
+
+/**
+ * Get recent payment transactions
+ * GET /api/admin/dashboard/recent-payments
+ */
+export const getRecentPayments = catchAsync(async (req, res) => {
+  const limit = parseInt(req.query.limit, 10) || 10;
+
+  const payments = await Payment.find()
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .populate('user', 'mobile')
+    .select('-__v');
+
+  res.status(200).json({
+    status: 'success',
+    data: { payments },
+  });
+});
+
+/**
+ * Get subscription metrics
+ * GET /api/admin/dashboard/subscription-metrics
+ */
+export const getSubscriptionMetrics = catchAsync(async (req, res) => {
+  const now = new Date();
+
+  const [planCounts, expiringToday, expiredRecently] = await Promise.all([
+    // Count by plan type
+    User.aggregate([
+      {
+        $match: {
+          'subscription.isActive': true,
+          'subscription.endDate': { $gt: now },
+        },
+      },
+      {
+        $group: {
+          _id: '$subscription.plan',
+          count: { $sum: 1 },
+        },
+      },
+    ]),
+    
+    // Expiring today
+    User.countDocuments({
+      'subscription.isActive': true,
+      'subscription.endDate': {
+        $gte: new Date(now.setHours(0, 0, 0, 0)),
+        $lt: new Date(now.setHours(23, 59, 59, 999)),
+      },
+    }),
+    
+    // Expired in last 7 days
+    User.countDocuments({
+      'subscription.endDate': {
+        $lt: new Date(),
+        $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+      },
+    }),
+  ]);
+
+  // Format plan counts
+  const plans = {
+    daily: 0,
+    weekly: 0,
+  };
+  
+  planCounts.forEach(({ _id, count }) => {
+    if (_id && plans.hasOwnProperty(_id)) {
+      plans[_id] = count;
+    }
+  });
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      activeByPlan: plans,
+      totalActive: plans.daily + plans.weekly,
+      expiringToday,
+      expiredRecently,
+    },
+  });
+});
+
+export default {
+  getDashboardStats,
+  getRecentPayments,
+  getSubscriptionMetrics,
+};

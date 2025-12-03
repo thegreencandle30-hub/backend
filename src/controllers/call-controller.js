@@ -1,0 +1,312 @@
+import Call from '../models/Call.js';
+import AppError from '../utils/app-error.js';
+import { catchAsync, parsePagination, formatPaginationResponse } from '../utils/helpers.js';
+
+/**
+ * Create a new call
+ * POST /api/admin/calls
+ */
+export const createCall = catchAsync(async (req, res) => {
+  const { commodity, type, entryPrice, target, stopLoss, date, status } = req.body;
+  const adminId = req.adminId;
+
+  const call = await Call.create({
+    commodity,
+    type,
+    entryPrice,
+    target,
+    stopLoss,
+    date: new Date(date),
+    status: status || 'active',
+    createdBy: adminId,
+  });
+
+  res.status(201).json({
+    status: 'success',
+    data: { call },
+  });
+});
+
+/**
+ * Get all calls with filters and pagination
+ * GET /api/admin/calls
+ */
+export const getAllCalls = catchAsync(async (req, res) => {
+  const { page, limit, skip } = parsePagination(req.query);
+  const { commodity, status, type, startDate, endDate, sortBy, sortOrder } = req.query;
+
+  // Build filter
+  const filter = {};
+
+  if (commodity) {
+    filter.commodity = commodity;
+  }
+
+  if (status) {
+    filter.status = status;
+  }
+
+  if (type) {
+    filter.type = type;
+  }
+
+  if (startDate || endDate) {
+    filter.date = {};
+    if (startDate) {
+      filter.date.$gte = new Date(startDate);
+    }
+    if (endDate) {
+      filter.date.$lte = new Date(endDate);
+    }
+  }
+
+  // Build sort
+  const sort = {};
+  sort[sortBy || 'date'] = sortOrder === 'asc' ? 1 : -1;
+
+  // Execute query
+  const [calls, total] = await Promise.all([
+    Call.find(filter)
+      .sort(sort)
+      .skip(skip)
+      .limit(limit)
+      .populate('createdBy', 'email')
+      .select('-__v'),
+    Call.countDocuments(filter),
+  ]);
+
+  res.status(200).json({
+    status: 'success',
+    ...formatPaginationResponse(calls, total, page, limit),
+  });
+});
+
+/**
+ * Get a single call by ID
+ * GET /api/admin/calls/:id
+ */
+export const getCallById = catchAsync(async (req, res) => {
+  const { id } = req.params;
+
+  const call = await Call.findById(id)
+    .populate('createdBy', 'email')
+    .select('-__v');
+
+  if (!call) {
+    throw new AppError('Call not found', 404);
+  }
+
+  res.status(200).json({
+    status: 'success',
+    data: { call },
+  });
+});
+
+/**
+ * Update a call
+ * PUT /api/admin/calls/:id
+ */
+export const updateCall = catchAsync(async (req, res) => {
+  const { id } = req.params;
+  const updateData = req.body;
+
+  // Convert date if provided
+  if (updateData.date) {
+    updateData.date = new Date(updateData.date);
+  }
+
+  const call = await Call.findByIdAndUpdate(id, updateData, {
+    new: true,
+    runValidators: true,
+  })
+    .populate('createdBy', 'email')
+    .select('-__v');
+
+  if (!call) {
+    throw new AppError('Call not found', 404);
+  }
+
+  res.status(200).json({
+    status: 'success',
+    data: { call },
+  });
+});
+
+/**
+ * Delete a call
+ * DELETE /api/admin/calls/:id
+ */
+export const deleteCall = catchAsync(async (req, res) => {
+  const { id } = req.params;
+
+  const call = await Call.findByIdAndDelete(id);
+
+  if (!call) {
+    throw new AppError('Call not found', 404);
+  }
+
+  res.status(200).json({
+    status: 'success',
+    message: 'Call deleted successfully',
+  });
+});
+
+/**
+ * Get today's calls (for users with active subscription)
+ * GET /api/calls
+ */
+export const getTodayCalls = catchAsync(async (req, res) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const calls = await Call.find({
+    date: { $gte: today, $lt: tomorrow },
+  })
+    .sort({ createdAt: -1 })
+    .select('-__v -createdBy');
+
+  res.status(200).json({
+    status: 'success',
+    data: { calls },
+  });
+});
+
+/**
+ * Get call history with pagination
+ * GET /api/calls/history
+ */
+export const getCallHistory = catchAsync(async (req, res) => {
+  const { page, limit, skip } = parsePagination(req.query);
+  const { commodity } = req.query;
+
+  const filter = {};
+  if (commodity) {
+    filter.commodity = commodity;
+  }
+
+  const [calls, total] = await Promise.all([
+    Call.find(filter)
+      .sort({ date: -1 })
+      .skip(skip)
+      .limit(limit)
+      .select('-__v -createdBy'),
+    Call.countDocuments(filter),
+  ]);
+
+  res.status(200).json({
+    status: 'success',
+    ...formatPaginationResponse(calls, total, page, limit),
+  });
+});
+
+/**
+ * Get call performance stats
+ * GET /api/calls/history/stats
+ */
+export const getCallStats = catchAsync(async (req, res) => {
+  const stats = await Call.aggregate([
+    {
+      $group: {
+        _id: null,
+        totalCalls: { $sum: 1 },
+        hitTarget: {
+          $sum: { $cond: [{ $eq: ['$status', 'hit_target'] }, 1, 0] },
+        },
+        hitStoploss: {
+          $sum: { $cond: [{ $eq: ['$status', 'hit_stoploss'] }, 1, 0] },
+        },
+        activeCalls: {
+          $sum: { $cond: [{ $eq: ['$status', 'active'] }, 1, 0] },
+        },
+        expiredCalls: {
+          $sum: { $cond: [{ $eq: ['$status', 'expired'] }, 1, 0] },
+        },
+      },
+    },
+  ]);
+
+  const result = stats[0] || {
+    totalCalls: 0,
+    hitTarget: 0,
+    hitStoploss: 0,
+    activeCalls: 0,
+    expiredCalls: 0,
+  };
+
+  // Calculate accuracy (hit_target / (hit_target + hit_stoploss))
+  const completedCalls = result.hitTarget + result.hitStoploss;
+  const accuracy = completedCalls > 0 
+    ? ((result.hitTarget / completedCalls) * 100).toFixed(2) 
+    : 0;
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      ...result,
+      accuracy: parseFloat(accuracy),
+    },
+  });
+});
+
+/**
+ * Get stats by commodity
+ * GET /api/calls/history/stats/by-commodity
+ */
+export const getStatsByCommodity = catchAsync(async (req, res) => {
+  const stats = await Call.aggregate([
+    {
+      $group: {
+        _id: '$commodity',
+        totalCalls: { $sum: 1 },
+        hitTarget: {
+          $sum: { $cond: [{ $eq: ['$status', 'hit_target'] }, 1, 0] },
+        },
+        hitStoploss: {
+          $sum: { $cond: [{ $eq: ['$status', 'hit_stoploss'] }, 1, 0] },
+        },
+      },
+    },
+    {
+      $project: {
+        commodity: '$_id',
+        totalCalls: 1,
+        hitTarget: 1,
+        hitStoploss: 1,
+        accuracy: {
+          $cond: [
+            { $eq: [{ $add: ['$hitTarget', '$hitStoploss'] }, 0] },
+            0,
+            {
+              $multiply: [
+                { $divide: ['$hitTarget', { $add: ['$hitTarget', '$hitStoploss'] }] },
+                100,
+              ],
+            },
+          ],
+        },
+        _id: 0,
+      },
+    },
+    { $sort: { commodity: 1 } },
+  ]);
+
+  res.status(200).json({
+    status: 'success',
+    data: { stats },
+  });
+});
+
+export default {
+  createCall,
+  getAllCalls,
+  getCallById,
+  updateCall,
+  deleteCall,
+  getTodayCalls,
+  getCallHistory,
+  getCallStats,
+  getStatsByCommodity,
+};
