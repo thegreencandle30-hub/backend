@@ -53,6 +53,9 @@ const env = {
   },
   
   adminCorsOrigin: process.env.ADMIN_CORS_ORIGIN || 'http://localhost:3000',
+  
+  // Serverless environment detection (Vercel, AWS Lambda, etc.)
+  isServerless: !!(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.FUNCTIONS_WORKER_RUNTIME),
 };
 
 export default env;
