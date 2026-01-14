@@ -66,7 +66,7 @@ export const initiatePayment = async ({
     merchantUserId: userId,
     amount: amount * 100, // Convert to paisa
     redirectUrl,
-    redirectMode: 'POST',
+    redirectMode: 'REDIRECT',
     callbackUrl,
     mobileNumber: mobile,
     paymentInstrument: {
@@ -120,7 +120,7 @@ export const initiatePayment = async ({
  */
 export const verifyCallback = (response, xVerify) => {
   try {
-    const expectedChecksum = createChecksum(response, '/pg/v1/pay');
+    const expectedChecksum = createChecksum(response, '');
     return expectedChecksum === xVerify;
   } catch (error) {
     logger.error(`PhonePe callback verification error: ${error.message}`);

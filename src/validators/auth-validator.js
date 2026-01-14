@@ -1,10 +1,14 @@
 import Joi from 'joi';
 
-// Verify Firebase token schema
-export const verifyTokenSchema = Joi.object({
-  idToken: Joi.string().required().messages({
-    'string.empty': 'Firebase ID token is required',
-    'any.required': 'Firebase ID token is required',
+// User login schema
+export const loginSchema = Joi.object({
+  displayId: Joi.string().required().messages({
+    'string.empty': 'Display ID is required',
+    'any.required': 'Display ID is required',
+  }),
+  password: Joi.string().required().messages({
+    'string.empty': 'Password is required',
+    'any.required': 'Password is required',
   }),
 });
 

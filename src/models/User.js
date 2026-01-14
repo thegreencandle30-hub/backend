@@ -1,21 +1,26 @@
 import mongoose from 'mongoose';
+import bcrypt from 'bcrypt';
+import crypto from 'crypto';
 
 const userSchema = new mongoose.Schema({
-  firebaseUid: {
+  displayId: {
     type: String,
-    sparse: true,
     unique: true,
     index: true,
-    // No default - field should be absent for sparse index to work
+  },
+  password: {
+    type: String,
+    required: [true, 'Please provide a password'],
+    select: false,
   },
   fullName: {
     type: String,
     trim: true,
-    default: null,
+    required: [true, 'Please provide your full name'],
   },
   mobile: {
     type: String,
-    required: true,
+    required: [true, 'Please provide your mobile number'],
     unique: true,
     trim: true,
   },
@@ -29,10 +34,10 @@ const userSchema = new mongoose.Schema({
     default: true,
   },
   subscription: {
-    plan: {
+    planTier: {
       type: String,
-      enum: ['daily', 'weekly', 'custom', null],
-      default: null,
+      enum: ['Regular', 'Premium', 'International', 'None'],
+      default: 'None',
     },
     startDate: {
       type: Date,
@@ -46,7 +51,15 @@ const userSchema = new mongoose.Schema({
       type: Boolean,
       default: false,
     },
-    isUnlimited: {
+    maxTargetsVisible: {
+      type: Number,
+      default: 2,
+    },
+    reminderHours: {
+      type: Number,
+      default: 2,
+    },
+    reminderSent: {
       type: Boolean,
       default: false,
     },
@@ -61,6 +74,25 @@ const userSchema = new mongoose.Schema({
 
 // Index for subscription queries
 userSchema.index({ 'subscription.isActive': 1, 'subscription.endDate': 1 });
+
+// Generate displayId and hash password before saving
+userSchema.pre('save', async function(next) {
+  // Generate random 8-character hex for displayId only on creation
+  if (this.isNew && !this.displayId) {
+    this.displayId = crypto.randomBytes(4).toString('hex').toUpperCase();
+  }
+
+  // Hash password only if modified
+  if (!this.isModified('password')) return next();
+  
+  this.password = await bcrypt.hash(this.password, 12);
+  next();
+});
+
+// Instance method to compare password
+userSchema.methods.comparePassword = async function(candidatePassword, userPassword) {
+  return await bcrypt.compare(candidatePassword, userPassword);
+};
 
 // Virtual to check if subscription is valid
 userSchema.virtual('hasActiveSubscription').get(function() {

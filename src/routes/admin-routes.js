@@ -5,12 +5,14 @@ import { paginationSchema, userStatusSchema } from '../validators/auth-validator
 import { createCallSchema, updateCallSchema, callListQuerySchema } from '../validators/call-validator.js';
 import { sendNotificationSchema, sendToUserSchema, testNotificationSchema } from '../validators/notification-validator.js';
 import { createUserSchema, updateUserSchema } from '../validators/user-validator.js';
+import { createPlanSchema, updatePlanSchema } from '../validators/plan-validator.js';
 import { notificationLimiter } from '../middlewares/security-middleware.js';
 import adminAuthController from '../controllers/admin-auth-controller.js';
 import adminUserController from '../controllers/admin-user-controller.js';
 import callController from '../controllers/call-controller.js';
 import dashboardController from '../controllers/dashboard-controller.js';
 import notificationController from '../controllers/notification-controller.js';
+import planController from '../controllers/plan-controller.js';
 
 const router = Router();
 
@@ -20,13 +22,29 @@ router.use(verifyAdminToken);
 // Admin profile
 router.get('/me', adminAuthController.getCurrentAdmin);
 
+// Plan management
+router.get('/plans', planController.getAllPlans);
+router.post(
+  '/plans',
+  validate(createPlanSchema),
+  planController.createPlan
+);
+router.patch(
+  '/plans/:id',
+  validate(updatePlanSchema),
+  planController.updatePlan
+);
+router.delete('/plans/:id', planController.deletePlan);
+
 // Dashboard
 router.get('/dashboard/stats', dashboardController.getDashboardStats);
 router.get('/dashboard/recent-payments', dashboardController.getRecentPayments);
 router.get('/dashboard/subscription-metrics', dashboardController.getSubscriptionMetrics);
+router.get('/dashboard/revenue-trend', dashboardController.getRevenueTrend);
 
 // Payments listing
 router.get('/payments', validate(paginationSchema, 'query'), adminUserController.getAllPayments);
+router.get('/payments/export', adminUserController.exportAllPaymentsCSV);
 
 // User management
 router.post(

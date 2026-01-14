@@ -1,21 +1,36 @@
 import Call from '../models/Call.js';
+import SubscriptionPlan from '../models/SubscriptionPlan.js';
 import AppError from '../utils/app-error.js';
 import { catchAsync, parsePagination, formatPaginationResponse } from '../utils/helpers.js';
+import moment from 'moment-timezone';
 
 /**
  * Create a new call
  * POST /api/admin/calls
  */
 export const createCall = catchAsync(async (req, res) => {
-  const { commodity, type, entryPrice, target, stopLoss, date, status } = req.body;
+  const { 
+    commodity, 
+    customCommodity, 
+    type, 
+    entryPrice, 
+    targetPrices, 
+    stopLoss, 
+    analysis, 
+    date, 
+    status 
+  } = req.body;
+  
   const adminId = req.adminId;
 
   const call = await Call.create({
     commodity,
+    customCommodity,
     type,
     entryPrice,
-    target,
+    targetPrices,
     stopLoss,
+    analysis,
     date: new Date(date),
     status: status || 'active',
     createdBy: adminId,
@@ -53,10 +68,10 @@ export const getAllCalls = catchAsync(async (req, res) => {
   if (startDate || endDate) {
     filter.date = {};
     if (startDate) {
-      filter.date.$gte = new Date(startDate);
+      filter.date.$gte = moment(startDate).startOf('day').toDate();
     }
     if (endDate) {
-      filter.date.$lte = new Date(endDate);
+      filter.date.$lte = moment(endDate).endOf('day').toDate();
     }
   }
 
@@ -156,21 +171,41 @@ export const deleteCall = catchAsync(async (req, res) => {
  * GET /api/calls
  */
 export const getTodayCalls = catchAsync(async (req, res) => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  // IST Midnight check
+  const todayIST = moment.tz('Asia/Kolkata').startOf('day');
+  const nowIST = moment.tz('Asia/Kolkata');
 
+  // If now is after 12 midnight, but call was from "yesterday" (before reset)
+  // Actually, startOf('day') is 12:00 AM IST.
+  // The requirement: "After 12 means admin added a call ... not seen ... after 12AM in night"
+  // So we only show calls where date >= start of today IST.
+  
   const calls = await Call.find({
-    date: { $gte: today, $lt: tomorrow },
+    date: { $gte: todayIST.toDate() },
   })
     .sort({ createdAt: -1 })
     .select('-__v -createdBy');
 
+  // Filter targetPrices based on subscription tier
+  const user = req.user;
+  const activePlan = await SubscriptionPlan.findOne({ 
+    type: user.subscription.type,
+    duration: user.subscription.plan 
+  });
+  
+  const maxTargets = activePlan ? activePlan.maxTargetsVisible : 2;
+
+  const filteredCalls = calls.map(call => {
+    const callObj = call.toObject();
+    callObj.targetPrices = callObj.targetPrices
+      .sort((a, b) => (a.order || 0) - (b.order || 0))
+      .slice(0, maxTargets);
+    return callObj;
+  });
+
   res.status(200).json({
     status: 'success',
-    data: { calls },
+    data: { calls: filteredCalls },
   });
 });
 
@@ -180,12 +215,20 @@ export const getTodayCalls = catchAsync(async (req, res) => {
  */
 export const getCallHistory = catchAsync(async (req, res) => {
   const { page, limit, skip } = parsePagination(req.query);
-  const { commodity } = req.query;
+  const { commodity, startDate, endDate } = req.query;
 
   const filter = {};
   if (commodity) {
     filter.commodity = commodity;
   }
+
+  // Default range: last 7 days
+  const defaultStartDate = moment.tz('Asia/Kolkata').subtract(7, 'days').startOf('day');
+  
+  filter.date = {
+    $gte: startDate ? new Date(startDate) : defaultStartDate.toDate(),
+    $lte: endDate ? new Date(endDate) : new Date(),
+  };
 
   const [calls, total] = await Promise.all([
     Call.find(filter)
@@ -196,9 +239,25 @@ export const getCallHistory = catchAsync(async (req, res) => {
     Call.countDocuments(filter),
   ]);
 
+  // Filter targets for history too? Usually yes.
+  const user = req.user;
+  const activePlan = await SubscriptionPlan.findOne({ 
+    type: user.subscription.type,
+    duration: user.subscription.plan 
+  });
+  const maxTargets = activePlan ? activePlan.maxTargetsVisible : 2;
+
+  const filteredCalls = calls.map(call => {
+    const callObj = call.toObject();
+    callObj.targetPrices = callObj.targetPrices
+      .sort((a, b) => (a.order || 0) - (b.order || 0))
+      .slice(0, maxTargets);
+    return callObj;
+  });
+
   res.status(200).json({
     status: 'success',
-    ...formatPaginationResponse(calls, total, page, limit),
+    ...formatPaginationResponse(filteredCalls, total, page, limit),
   });
 });
 

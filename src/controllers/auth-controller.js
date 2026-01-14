@@ -1,5 +1,4 @@
 import User from '../models/User.js';
-import firebaseService from '../services/firebase-service.js';
 import AppError from '../utils/app-error.js';
 import { catchAsync } from '../utils/helpers.js';
 import {
@@ -9,61 +8,83 @@ import {
 } from '../middlewares/auth-middleware.js';
 
 /**
- * Verify Firebase ID token and create/get user
- * POST /api/auth/verify-token
+ * Login user using displayId and password
+ * POST /api/auth/login
  */
-export const verifyFirebaseToken = catchAsync(async (req, res) => {
-  const { idToken } = req.body;
-  
-  // Verify Firebase ID token
-  const decodedToken = await firebaseService.verifyIdToken(idToken);
-  
-  // Extract phone number from token
-  const { uid, phone_number: phoneNumber } = decodedToken;
-  
-  if (!phoneNumber) {
-    throw new AppError('Phone number not found in Firebase token', 400);
+export const login = catchAsync(async (req, res, next) => {
+  const { displayId, password } = req.body;
+
+  // 1) Check if displayId and password exist
+  if (!displayId || !password) {
+    return next(new AppError('Please provide displayId and password', 400));
   }
-  
-  // Find user by firebaseUid first, then fallback to mobile (for admin-created users)
-  let user = await User.findOne({ firebaseUid: uid });
-  
-  if (!user) {
-    // Check if admin-created user exists with this mobile (no firebaseUid)
-    user = await User.findOne({ mobile: phoneNumber, firebaseUid: null });
-    
-    if (user) {
-      // Link admin-created user to Firebase account
-      user.firebaseUid = uid;
-      await user.save();
-    } else {
-      // Create new user
-      user = await User.create({
-        firebaseUid: uid,
-        mobile: phoneNumber,
-      });
-    }
+
+  // 2) Check if user exists && password is correct
+  const user = await User.findOne({ displayId: displayId.toUpperCase() }).select('+password');
+
+  if (!user || !(await user.comparePassword(password, user.password))) {
+    return next(new AppError('Incorrect displayId or password', 401));
   }
-  
-  // Check if user is active
+
+  // 3) Check if user is active
   if (!user.isActive) {
-    throw new AppError('Your account has been disabled', 403);
+    return next(new AppError('Your account has been disabled', 403));
   }
-  
-  // Generate tokens
+
+  // 4) If everything ok, send token to client
   const accessToken = generateAccessToken(user._id, 'user');
-  const { token: refreshToken } = await generateRefreshToken(user._id, 'user', { ip: req.ip, userAgent: req.headers['user-agent'] });
-  
+  const { token: refreshToken } = await generateRefreshToken(user._id, 'user', { 
+    ip: req.ip, 
+    userAgent: req.headers['user-agent'] 
+  });
+
   res.status(200).json({
     status: 'success',
     data: {
       user: {
         id: user._id,
+        displayId: user.displayId,
         mobile: user.mobile,
+        fullName: user.fullName,
         isActive: user.isActive,
         subscription: user.subscription,
         hasActiveSubscription: user.hasActiveSubscription,
       },
+      accessToken,
+      refreshToken,
+    },
+  });
+});
+
+/**
+ * Change password
+ * POST /api/auth/change-password
+ */
+export const changePassword = catchAsync(async (req, res, next) => {
+  const { currentPassword, newPassword } = req.body;
+
+  // 1) Get user from collection
+  const user = await User.findById(req.userId).select('+password');
+
+  // 2) Check if posted current password is correct
+  if (!(await user.comparePassword(currentPassword, user.password))) {
+    return next(new AppError('Your current password is wrong', 401));
+  }
+
+  // 3) Update password
+  user.password = newPassword;
+  await user.save();
+
+  // 4) Log user in (send JWT)
+  const accessToken = generateAccessToken(user._id, 'user');
+  const { token: refreshToken } = await generateRefreshToken(user._id, 'user', { 
+    ip: req.ip, 
+    userAgent: req.headers['user-agent'] 
+  });
+
+  res.status(200).json({
+    status: 'success',
+    data: {
       accessToken,
       refreshToken,
     },
@@ -144,7 +165,8 @@ export const logout = catchAsync(async (req, res) => {
 });
 
 export default {
-  verifyFirebaseToken,
+  login,
+  changePassword,
   refreshAccessToken,
   logout,
 };

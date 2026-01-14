@@ -2,8 +2,9 @@ import { Router } from 'express';
 import authController from '../controllers/auth-controller.js';
 import adminAuthController from '../controllers/admin-auth-controller.js';
 import { validate } from '../middlewares/validate-middleware.js';
-import { verifyTokenSchema, refreshTokenSchema, adminLoginSchema } from '../validators/auth-validator.js';
+import { loginSchema, refreshTokenSchema, adminLoginSchema } from '../validators/auth-validator.js';
 import { authLimiter } from '../middlewares/security-middleware.js';
+import { verifyToken } from '../middlewares/auth-middleware.js';
 
 const router = Router();
 
@@ -12,9 +13,15 @@ router.use(authLimiter);
 
 // Public routes for user authentication
 router.post(
-  '/verify-token',
-  validate(verifyTokenSchema),
-  authController.verifyFirebaseToken
+  '/login',
+  validate(loginSchema),
+  authController.login
+);
+
+router.post(
+  '/change-password',
+  verifyToken,
+  authController.changePassword
 );
 
 router.post(

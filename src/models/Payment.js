@@ -9,8 +9,11 @@ const paymentSchema = new mongoose.Schema({
   },
   plan: {
     type: String,
-    enum: ['daily', 'weekly'],
     required: true,
+  },
+  planId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'SubscriptionPlan',
   },
   amount: {
     type: Number,
@@ -32,6 +35,14 @@ const paymentSchema = new mongoose.Schema({
     unique: true,
   },
   phonepeTransactionId: {
+    type: String,
+    default: null,
+  },
+  isNewUser: {
+    type: Boolean,
+    default: false,
+  },
+  tempPassword: {
     type: String,
     default: null,
   },

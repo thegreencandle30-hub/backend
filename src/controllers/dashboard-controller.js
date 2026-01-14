@@ -181,8 +181,56 @@ export const getSubscriptionMetrics = catchAsync(async (req, res) => {
   });
 });
 
+/**
+ * Get revenue trend for the last 7 months
+ * GET /api/admin/dashboard/revenue-trend
+ */
+export const getRevenueTrend = catchAsync(async (req, res) => {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  
+  const now = new Date();
+  const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1);
+  
+  const revenueData = await Payment.aggregate([
+    {
+      $match: {
+        status: 'completed',
+        createdAt: { $gte: sixMonthsAgo }
+      }
+    },
+    {
+      $group: {
+        _id: {
+          year: { $year: '$createdAt' },
+          month: { $month: '$createdAt' }
+        },
+        revenue: { $sum: '$amount' }
+      }
+    }
+  ]);
+
+  const result = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const monthData = revenueData.find(r => 
+      r._id.year === d.getFullYear() && r._id.month === (d.getMonth() + 1)
+    );
+    
+    result.push({
+      name: months[d.getMonth()],
+      revenue: monthData ? monthData.revenue : 0,
+    });
+  }
+
+  res.status(200).json({
+    status: 'success',
+    data: { trend: result },
+  });
+});
+
 export default {
   getDashboardStats,
   getRecentPayments,
   getSubscriptionMetrics,
+  getRevenueTrend,
 };

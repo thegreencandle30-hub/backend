@@ -12,6 +12,9 @@ router.use(verifyToken);
 // Get current user profile
 router.get('/me', userController.getCurrentUser);
 
+// Export transactions
+router.get('/me/transactions/export', userController.exportTransactions);
+
 // Update FCM token
 router.put(
   '/me/fcm-token',

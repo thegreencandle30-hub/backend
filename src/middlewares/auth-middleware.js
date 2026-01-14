@@ -53,13 +53,18 @@ export const verifyToken = async (req, res, next) => {
  */
 export const verifyAdminToken = async (req, res, next) => {
   try {
-    // Get token from header
+    // Get token from header or query param
+    let token;
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    } else if (req.query.token) {
+      token = req.query.token;
+    }
+
+    if (!token) {
       return next(new AppError('No token provided', 401));
     }
-    
-    const token = authHeader.split(' ')[1];
     
     // Verify token
     const decoded = jwt.verify(token, env.jwt.secret);

@@ -2,11 +2,15 @@ import app from './app.js';
 import env from './src/config/env.js';
 import connectDB from './src/config/db.js';
 import logger from './src/utils/logger.js';
+import { initSchedulers } from './src/services/scheduler-service.js';
 
 const startServer = async () => {
   try {
     // Connect to MongoDB
     await connectDB();
+
+    // Initialize scheduled tasks
+    initSchedulers();
     
     // Start Express server
     const server = app.listen(env.port, () => {

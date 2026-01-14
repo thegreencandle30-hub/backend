@@ -2,6 +2,7 @@ import User from '../models/User.js';
 import Payment from '../models/Payment.js';
 import AppError from '../utils/app-error.js';
 import { catchAsync, parsePagination, formatPaginationResponse } from '../utils/helpers.js';
+import moment from 'moment-timezone';
 
 /**
  * Get all users with pagination
@@ -170,6 +171,37 @@ export const getAllPayments = catchAsync(async (req, res) => {
 });
 
 /**
+ * Export all successful payments to CSV
+ * GET /api/admin/payments/export
+ */
+export const exportAllPaymentsCSV = catchAsync(async (req, res) => {
+  const { fromDate, toDate } = req.query;
+
+  const filter = { status: 'completed' };
+  if (fromDate || toDate) {
+    filter.createdAt = {};
+    if (fromDate) filter.createdAt.$gte = new Date(fromDate);
+    if (toDate) filter.createdAt.$lte = new Date(toDate);
+  }
+
+  const payments = await Payment.find(filter)
+    .sort({ createdAt: -1 })
+    .populate('user', 'mobile displayId fullName');
+
+  let csv = 'Date (IST),User ID,User Name,Mobile,Plan Type,Amount,Currency,Status,Transaction ID\n';
+  
+  payments.forEach(p => {
+    const dateIST = moment(p.createdAt).tz('Asia/Kolkata').format('YYYY-MM-DD HH:mm:ss');
+    const user = p.user || {};
+    csv += `${dateIST},${user.displayId || 'N/A'},"${user.fullName || 'N/A'}",${user.mobile || 'N/A'},${p.plan},${p.amount},${p.currency},${p.status},${p.transactionId}\n`;
+  });
+
+  res.header('Content-Type', 'text/csv');
+  res.attachment(`payments_export_${moment().format('YYYY-MM-DD')}.csv`);
+  return res.send(csv);
+});
+
+/**
  * Activate subscription manually (for admin)
  * POST /api/admin/users/:id/activate-subscription
  */
@@ -207,7 +239,7 @@ export const activateSubscription = catchAsync(async (req, res) => {
  * POST /api/admin/users
  */
 export const createUser = catchAsync(async (req, res) => {
-  const { fullName, mobile, city, isActive = true, accessDays, isUnlimited = false } = req.body;
+  const { fullName, mobile, city, isActive = true, accessDays, isUnlimited = false, planTier = 'Regular' } = req.body;
   
   // Check if user with this mobile already exists
   const existingUser = await User.findOne({ mobile });
@@ -215,25 +247,29 @@ export const createUser = catchAsync(async (req, res) => {
     throw new AppError('A user with this mobile number already exists', 409);
   }
   
-  // Build user data (don't set firebaseUid - leave it undefined for sparse index)
+  // Generate random 8-character password
+  const password = Math.random().toString(36).slice(-8).toUpperCase();
+
+  // Build user data
   const userData = {
     mobile,
     isActive,
+    password,
+    fullName: fullName || mobile, // Fallback to mobile if name not provided
+    city: city || ''
   };
-  
-  // Only set optional fields if they have values
-  if (fullName) userData.fullName = fullName;
-  if (city) userData.city = city;
   
   // Set subscription if accessDays or isUnlimited provided
   if (accessDays || isUnlimited) {
     const now = new Date();
     userData.subscription = {
-      plan: 'custom',
+      planTier,
       startDate: now,
       endDate: isUnlimited ? null : new Date(now.getTime() + accessDays * 24 * 60 * 60 * 1000),
       isActive: true,
-      isUnlimited,
+      maxTargetsVisible: planTier === 'Regular' ? 2 : 99,
+      reminderHours: 24,
+      reminderSent: false
     };
   }
   
@@ -242,7 +278,16 @@ export const createUser = catchAsync(async (req, res) => {
   res.status(201).json({
     status: 'success',
     message: 'User created successfully',
-    data: { user },
+    data: { 
+      user: {
+        id: user._id,
+        displayId: user.displayId,
+        mobile: user.mobile,
+        fullName: user.fullName,
+        subscription: user.subscription
+      },
+      temp_password: password
+    },
   });
 });
 
@@ -357,6 +402,7 @@ export default {
   updateUserStatus,
   getAllPayments,
   getUserPayments,
+  exportAllPaymentsCSV,
   activateSubscription,
   createUser,
   updateUser,

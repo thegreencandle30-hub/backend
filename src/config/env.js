@@ -53,7 +53,16 @@ const env = {
   },
   
   adminCorsOrigin: process.env.ADMIN_CORS_ORIGIN || 'http://localhost:3000',
+  apiBaseUrl: process.env.API_BASE_URL || 'http://localhost:5000',
   
+  // Dev auth bypass for local testing - only enabled when NODE_ENV !== 'production' and DEV_AUTH_ENABLED === 'true'
+  devAuth: {
+    enabled: process.env.DEV_AUTH_ENABLED === 'true',
+    testIdToken: process.env.DEV_AUTH_ID_TOKEN || null,
+    testUid: process.env.DEV_AUTH_UID || 'dev-uid',
+    testPhone: process.env.DEV_AUTH_PHONE || '+919999999999',
+  },
+
   // Serverless environment detection (Vercel, AWS Lambda, etc.)
   isServerless: !!(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.FUNCTIONS_WORKER_RUNTIME),
 };

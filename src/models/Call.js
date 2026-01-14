@@ -3,9 +3,13 @@ import mongoose from 'mongoose';
 const callSchema = new mongoose.Schema({
   commodity: {
     type: String,
-    enum: ['gold', 'silver', 'nifty', 'copper'],
+    enum: ['Gold', 'Silver', 'Copper', 'Crude', 'CMX Gold', 'CMX Silver', 'Custom'],
     required: true,
     index: true,
+  },
+  customCommodity: {
+    type: String,
+    trim: true,
   },
   type: {
     type: String,
@@ -16,13 +20,28 @@ const callSchema = new mongoose.Schema({
     type: Number,
     required: true,
   },
-  target: {
-    type: Number,
-    required: true,
-  },
+  targetPrices: [{
+    price: {
+      type: Number,
+      required: true
+    },
+    label: {
+      type: String,
+      required: true
+    },
+    order: {
+      type: Number,
+      default: 1
+    }
+  }],
   stopLoss: {
     type: Number,
     required: true,
+  },
+  analysis: {
+    type: String,
+    trim: true,
+    required: [true, 'Analysis/Rationale is required'],
   },
   status: {
     type: String,
