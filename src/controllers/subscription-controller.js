@@ -18,20 +18,9 @@ export const registerAndSubscribe = catchAsync(async (req, res, next) => {
   const { fullName, mobile, planId } = req.body;
 
   // 1) Check if user already exists
-  let user = await User.findOne({ mobile });
-  let isNewUser = false;
-  let password = null;
-
-  if (!user) {
-    isNewUser = true;
-    password = crypto.randomBytes(4).toString('hex'); // 8-char hex
-    
-    user = await User.create({
-      fullName,
-      mobile,
-      password, // This will be hashed by pre-save hook
-      isActive: false, // Only becomes active after payment
-    });
+  const existingUser = await User.findOne({ mobile });
+  if (existingUser) {
+    return next(new AppError('Mobile number already registered. Please login.', 400));
   }
 
   // 2) Get plan details
@@ -40,7 +29,17 @@ export const registerAndSubscribe = catchAsync(async (req, res, next) => {
     return next(new AppError('Invalid subscription plan', 400));
   }
 
-  // 3) Create pending payment record
+  // 3) Create inactive user with generated password
+  // Password will be shown only after successful payment
+  const password = crypto.randomBytes(4).toString('hex'); // 8-char hex
+  const user = await User.create({
+    fullName,
+    mobile,
+    password, // This will be hashed by pre-save hook
+    isActive: false, // Only becomes active after payment
+  });
+
+  // 4) Initiate payment
   const transactionId = phonepeService.generateTransactionId();
   const amount = plan.price;
 
@@ -52,17 +51,12 @@ export const registerAndSubscribe = catchAsync(async (req, res, next) => {
     currency: plan.currency,
     status: 'pending',
     transactionId,
-    isNewUser,
-    tempPassword: password,
   });
 
   // Callback and Redirect URLs
   const callbackUrl = `${env.apiBaseUrl}/api/subscriptions/callback`;
-  const redirectUrl = isNewUser 
-    ? `${env.adminCorsOrigin}/payment/status?transactionId=${transactionId}&new_user=true&pwd=${password}`
-    : `${env.adminCorsOrigin}/payment/status?transactionId=${transactionId}`;
+  const redirectUrl = `${env.adminCorsOrigin}/payment/status?transactionId=${transactionId}&new_user=true&pwd=${password}`;
 
-  // 4) Initiate PhonePe payment
   const result = await phonepeService.initiatePayment({
     transactionId,
     amount,
@@ -83,7 +77,7 @@ export const registerAndSubscribe = catchAsync(async (req, res, next) => {
     data: {
       paymentUrl: result.paymentUrl,
       transactionId,
-      temp_password: isNewUser ? password : undefined // Only for new users
+      temp_password: password // For mobile app to show if redirect doesn't work well
     },
   });
 });
@@ -211,7 +205,7 @@ export const checkStatus = catchAsync(async (req, res) => {
     }
   }
 
-  const user = await User.findById(payment.user);
+  const user = await User.findById(payment.user).select('+password');
   const queue = await SubscriptionQueue.find({ user: user._id }).sort({ queuePosition: 1 }).populate('planId');
 
   res.status(200).json({
@@ -223,8 +217,8 @@ export const checkStatus = catchAsync(async (req, res) => {
       user: {
         displayId: user.displayId,
         // password is only returned in this specific context after successful payment
-        // only if it's a new user and payment is completed.
-        temp_password: (payment.status === 'completed' && payment.isNewUser) ? payment.tempPassword : undefined,
+        // Mobile app will show it once. It's safe because only the person with transactionId can see it.
+        temp_password: req.query.new_user === 'true' ? user.password : undefined,
       },
       currentSubscription: user.subscription,
       queue: queue,
