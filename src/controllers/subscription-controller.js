@@ -18,9 +18,21 @@ export const registerAndSubscribe = catchAsync(async (req, res, next) => {
   const { fullName, mobile, planId } = req.body;
 
   // 1) Check if user already exists
-  const existingUser = await User.findOne({ mobile });
-  if (existingUser) {
-    return next(new AppError('Mobile number already registered. Please login.', 400));
+  let user = await User.findOne({ mobile });
+  
+  if (user) {
+    // If user is active (completed registration previously)
+    if (user.isActive) {
+      // Check if they have an active subscription
+      const hasActivePlan = user.subscription?.isActive && new Date(user.subscription.endDate) > new Date();
+      
+      if (hasActivePlan) {
+        return next(new AppError('Mobile number registered with an active plan. Please login.', 400));
+      } else {
+        return next(new AppError('Mobile number registered. Please login to renew subscription.', 400));
+      }
+    }
+    // If user exists but is NOT active (failed previous payment/signup), we allow retry (overwrite).
   }
 
   // 2) Get plan details
@@ -29,15 +41,26 @@ export const registerAndSubscribe = catchAsync(async (req, res, next) => {
     return next(new AppError('Invalid subscription plan', 400));
   }
 
-  // 3) Create inactive user with generated password
+  // 3) Create or Update inactive user with generated password
   // Password will be shown only after successful payment
   const password = crypto.randomBytes(4).toString('hex'); // 8-char hex
-  const user = await User.create({
-    fullName,
-    mobile,
-    password, // This will be hashed by pre-save hook
-    isActive: false, // Only becomes active after payment
-  });
+  
+  if (user) {
+    // Retry flow for inactive user
+    user.fullName = fullName;
+    user.password = password; // Will be hashed by pre-save
+    // Ensure isActive remains false until payment success
+    user.isActive = false; 
+    await user.save();
+  } else {
+    // New user flow
+    user = await User.create({
+      fullName,
+      mobile,
+      password, // This will be hashed by pre-save hook
+      isActive: false, // Only becomes active after payment
+    });
+  }
 
   // 4) Initiate payment
   const transactionId = phonepeService.generateTransactionId();
@@ -55,7 +78,8 @@ export const registerAndSubscribe = catchAsync(async (req, res, next) => {
 
   // Callback and Redirect URLs
   const callbackUrl = `${env.apiBaseUrl}/api/subscriptions/callback`;
-  const redirectUrl = `${env.adminCorsOrigin}/payment/status?transactionId=${transactionId}&new_user=true&pwd=${password}`;
+  // Use internal backend redirect handler to convert POST to GET for mobile/deep-linking support
+  const redirectUrl = `${env.apiBaseUrl}/api/subscriptions/redirect-handler?transactionId=${transactionId}&new_user=true&pwd=${password}`;
 
   const result = await phonepeService.initiatePayment({
     transactionId,
@@ -113,7 +137,8 @@ export const initiatePayment = catchAsync(async (req, res, next) => {
 
   // Callback URLs
   const callbackUrl = `${env.apiBaseUrl}/api/subscriptions/callback`;
-  const redirectUrl = `${env.adminCorsOrigin}/payment/status?transactionId=${transactionId}`;
+  // Use internal backend redirect handler to convert POST to GET for mobile/deep-linking support
+  const redirectUrl = `${env.apiBaseUrl}/api/subscriptions/redirect-handler?transactionId=${transactionId}`;
 
   // 4) Initiate PhonePe payment
   const result = await phonepeService.initiatePayment({
@@ -286,9 +311,38 @@ async function activateAndQueuePlan(userId, transactionId, paymentId) {
   }
 }
 
+/**
+ * Handle PhonePe redirect (Bridge for Mobile/Deep Links)
+ * Receives POST from PhonePe -> Redirects GET to User App
+ */
+export const handlePaymentRedirect = catchAsync(async (req, res) => {
+  const { transactionId, new_user, pwd } = req.query;
+  const { code, merchantTransactionId } = req.body;
+
+  // Ideally verify checksum here, but for redirect UX we can rely on the final checkStatus call
+  // which is secure and performed by the app after this redirect.
+
+  let targetUrl = `${env.userAppOrigin}/payment/status?transactionId=${transactionId || merchantTransactionId}`;
+  
+  // Pass forward flags
+  if (code === 'PAYMENT_SUCCESS') {
+    targetUrl += `&status=success`;
+  } else {
+    targetUrl += `&status=failed`;
+  }
+
+  if (new_user) targetUrl += `&new_user=${new_user}`;
+  if (pwd) targetUrl += `&pwd=${pwd}`;
+
+  // Perform standard browser redirect (GET)
+  res.redirect(302, targetUrl);
+});
+
 export default {
   registerAndSubscribe,
   initiatePayment,
   paymentCallback,
   checkStatus,
+  handlePaymentRedirect,
 };
+

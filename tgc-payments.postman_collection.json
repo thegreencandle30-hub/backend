@@ -1,0 +1,233 @@
+{
+	"info": {
+		"_postman_id": "e3b6d7a1-8f9c-4d2e-9a1b-5c8e4f1a2b3c",
+		"name": "The Green Candle Payments",
+		"description": "Collection to test Subscription and Payment flows for The Green Candle",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "1. Get Active Plans",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"var jsonData = pm.response.json();",
+							"if (jsonData.data && jsonData.data.length > 0) {",
+							"    pm.collectionVariables.set(\"planId\", jsonData.data[0]._id);",
+							"    console.log(\"Set planId to:\", jsonData.data[0]._id);",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/api/subscriptions/plans",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "subscriptions", "plans"]
+				}
+			}
+		},
+		{
+			"name": "2. Register & Subscribe (New User)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"var jsonData = pm.response.json();",
+							"if (jsonData.status === 'success') {",
+							"    pm.collectionVariables.set(\"transactionId\", jsonData.data.transactionId);",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"fullName\": \"Test User\",\n    \"mobile\": \"9999999999\",\n    \"planId\": \"{{planId}}\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/subscriptions/register",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "subscriptions", "register"]
+				}
+			}
+		},
+		{
+			"name": "3. Check Status",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"var jsonData = pm.response.json();",
+							"if (jsonData.data && jsonData.data.user && jsonData.data.user.temp_password) {",
+							"    pm.collectionVariables.set(\"tempPassword\", jsonData.data.user.temp_password);",
+							"    console.log(\"Captured tempPassword\");",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/api/subscriptions/status/{{transactionId}}?new_user=true",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "subscriptions", "status", "{{transactionId}}"],
+					"query": [
+						{
+							"key": "new_user",
+							"value": "true"
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "4. Login with Mobile",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"var jsonData = pm.response.json();",
+							"if (jsonData.status === 'success' && jsonData.data.accessToken) {",
+							"    pm.collectionVariables.set(\"authToken\", jsonData.data.accessToken);",
+							"    console.log(\"Captured authToken\");",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"mobile\": \"9999999999\",\n    \"password\": \"{{tempPassword}}\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/auth/login",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "auth", "login"]
+				}
+			}
+		},
+		{
+			"name": "5. Initiate Payment (Logged In)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{authToken}}",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"planId\": \"{{planId}}\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/subscriptions/initiate",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "subscriptions", "initiate"]
+				}
+			}
+		},
+		{
+			"name": "6. Redirect Bridge Test (Simulate PhonePe Return)",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "code",
+							"value": "PAYMENT_SUCCESS",
+							"type": "text"
+						},
+						{
+							"key": "merchantTransactionId",
+							"value": "{{transactionId}}",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/subscriptions/redirect-handler?transactionId={{transactionId}}&new_user=true",
+					"host": ["{{baseUrl}}"],
+					"path": ["api", "subscriptions", "redirect-handler"],
+					"query": [
+						{
+							"key": "transactionId",
+							"value": "{{transactionId}}"
+						},
+						{
+							"key": "new_user",
+							"value": "true"
+						}
+					]
+				},
+				"description": "This request simulates what PhonePe does when it redirects the user back. In a browser/Postman, this will result in a 302 Redirect response."
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:5000",
+			"type": "string"
+		},
+		{
+			"key": "planId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "transactionId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "authToken",
+			"value": "YOUR_JWT_TOKEN",
+			"type": "string"
+		},
+		{
+			"key": "tempPassword",
+			"value": "",
+			"type": "string"
+		}
+	]
+}

@@ -25,6 +25,9 @@ router.post(
   subscriptionController.paymentCallback
 );
 
+// PhonePe redirect bridge (Handles POST from PhonePe and redirects to User App)
+router.post('/redirect-handler', subscriptionController.handlePaymentRedirect);
+
 // Protected routes
 router.use(verifyToken);
 

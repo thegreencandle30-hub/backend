@@ -27,6 +27,7 @@ const corsOptions = {
     // Allow requests with no origin (mobile apps, curl, etc.)
     const allowedOrigins = [
       env.adminCorsOrigin,
+      env.userAppOrigin,
       'http://localhost:3000',
       'http://localhost:5000',
     ];

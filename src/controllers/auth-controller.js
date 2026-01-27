@@ -12,18 +12,25 @@ import {
  * POST /api/auth/login
  */
 export const login = catchAsync(async (req, res, next) => {
-  const { displayId, password } = req.body;
+  const { displayId, mobile, password } = req.body;
 
-  // 1) Check if displayId and password exist
-  if (!displayId || !password) {
-    return next(new AppError('Please provide displayId and password', 400));
+  // 1) Check if identifier (displayId or mobile) and password exist
+  if ((!displayId && !mobile) || !password) {
+    return next(new AppError('Please provide Phone number and password', 400));
   }
 
   // 2) Check if user exists && password is correct
-  const user = await User.findOne({ displayId: displayId.toUpperCase() }).select('+password');
+  let query = {};
+  if (mobile) {
+    query.mobile = mobile;
+  } else {
+    query.displayId = displayId.toUpperCase();
+  }
+
+  const user = await User.findOne(query).select('+password');
 
   if (!user || !(await user.comparePassword(password, user.password))) {
-    return next(new AppError('Incorrect displayId or password', 401));
+    return next(new AppError('Incorrect login details or password', 401));
   }
 
   // 3) Check if user is active

@@ -53,6 +53,7 @@ const env = {
   },
   
   adminCorsOrigin: process.env.ADMIN_CORS_ORIGIN || 'http://localhost:3000',
+  userAppOrigin: process.env.USER_APP_ORIGIN || 'http://localhost:3001',
   apiBaseUrl: process.env.API_BASE_URL || 'http://localhost:5000',
   
   // Dev auth bypass for local testing - only enabled when NODE_ENV !== 'production' and DEV_AUTH_ENABLED === 'true'
