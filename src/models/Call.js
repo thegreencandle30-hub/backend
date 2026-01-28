@@ -43,6 +43,12 @@ const callSchema = new mongoose.Schema({
     trim: true,
     required: [true, 'Analysis/Rationale is required'],
   },
+  tradeType: {
+    type: String,
+    enum: ['intraday', 'short_term'],
+    default: 'intraday',
+    index: true,
+  },
   status: {
     type: String,
     enum: ['active', 'hit_target', 'hit_stoploss', 'expired'],
@@ -66,6 +72,8 @@ const callSchema = new mongoose.Schema({
 // Compound index for date-based queries
 callSchema.index({ date: -1, commodity: 1 });
 callSchema.index({ status: 1, date: -1 });
+callSchema.index({ tradeType: 1, date: -1 });
+callSchema.index({ tradeType: 1, status: 1, date: -1 });
 
 const Call = mongoose.model('Call', callSchema);
 

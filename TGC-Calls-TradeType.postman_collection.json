@@ -1,0 +1,950 @@
+{
+	"info": {
+		"_postman_id": "tgc-calls-tradetype-001",
+		"name": "TGC Calls - Trade Type API",
+		"description": "API collection for testing intraday and short-term call management",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Admin Auth",
+			"item": [
+				{
+					"name": "Admin Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const response = pm.response.json();",
+									"    pm.environment.set('admin_access_token', response.data.accessToken);",
+									"    pm.environment.set('admin_refresh_token', response.data.refreshToken);",
+									"    console.log('Admin tokens saved to environment');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"admin@thegreencandle.com\",\n  \"password\": \"your-admin-password\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/auth/login",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"auth",
+								"login"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Admin - Create Calls",
+			"item": [
+				{
+					"name": "Create Intraday Call (Default)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_access_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"commodity\": \"Gold\",\n  \"type\": \"buy\",\n  \"entryPrice\": 62500,\n  \"targetPrices\": [\n    {\n      \"price\": 62800,\n      \"label\": \"Target 1\",\n      \"order\": 1\n    },\n    {\n      \"price\": 63000,\n      \"label\": \"Target 2\",\n      \"order\": 2\n    },\n    {\n      \"price\": 63200,\n      \"label\": \"Target 3\",\n      \"order\": 3\n    }\n  ],\n  \"stopLoss\": 62200,\n  \"analysis\": \"Strong support at 62200, expecting bullish momentum for intraday trading\",\n  \"date\": \"2026-01-28T00:00:00.000Z\",\n  \"status\": \"active\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/calls",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"calls"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Intraday Call (Explicit)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_access_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"commodity\": \"Silver\",\n  \"type\": \"buy\",\n  \"entryPrice\": 73000,\n  \"targetPrices\": [\n    {\n      \"price\": 73500,\n      \"label\": \"Target 1\",\n      \"order\": 1\n    },\n    {\n      \"price\": 74000,\n      \"label\": \"Target 2\",\n      \"order\": 2\n    }\n  ],\n  \"stopLoss\": 72500,\n  \"analysis\": \"Intraday breakout expected above 73000\",\n  \"date\": \"2026-01-28T00:00:00.000Z\",\n  \"status\": \"active\",\n  \"tradeType\": \"intraday\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/calls",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"calls"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Short-Term Call",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_access_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"commodity\": \"Copper\",\n  \"type\": \"sell\",\n  \"entryPrice\": 720,\n  \"targetPrices\": [\n    {\n      \"price\": 710,\n      \"label\": \"Target 1\",\n      \"order\": 1\n    },\n    {\n      \"price\": 700,\n      \"label\": \"Target 2\",\n      \"order\": 2\n    },\n    {\n      \"price\": 690,\n      \"label\": \"Target 3\",\n      \"order\": 3\n    }\n  ],\n  \"stopLoss\": 730,\n  \"analysis\": \"Short-term resistance at 720, expecting downward movement over next 3-5 days\",\n  \"date\": \"2026-01-28T00:00:00.000Z\",\n  \"status\": \"active\",\n  \"tradeType\": \"short_term\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/calls",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"calls"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Short-Term Crude Call",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_access_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"commodity\": \"Crude\",\n  \"type\": \"buy\",\n  \"entryPrice\": 6300,\n  \"targetPrices\": [\n    {\n      \"price\": 6450,\n      \"label\": \"Target 1\",\n      \"order\": 1\n    },\n    {\n      \"price\": 6600,\n      \"label\": \"Target 2\",\n      \"order\": 2\n    }\n  ],\n  \"stopLoss\": 6200,\n  \"analysis\": \"Short-term bullish pattern forming, expecting upward movement in next week\",\n  \"date\": \"2026-01-28T00:00:00.000Z\",\n  \"status\": \"active\",\n  \"tradeType\": \"short_term\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/calls",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"calls"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Admin - Get Calls",
+			"item": [
+				{
+					"name": "Get All Calls (No Filter)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/calls?page=1&limit=10",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"calls"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Only Intraday Calls",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/calls?tradeType=intraday&page=1&limit=10",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"calls"
+							],
+							"query": [
+								{
+									"key": "tradeType",
+									"value": "intraday"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Only Short-Term Calls",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/calls?tradeType=short_term&page=1&limit=10",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"calls"
+							],
+							"query": [
+								{
+									"key": "tradeType",
+									"value": "short_term"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Active Intraday Calls",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/calls?tradeType=intraday&status=active&page=1&limit=10",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"calls"
+							],
+							"query": [
+								{
+									"key": "tradeType",
+									"value": "intraday"
+								},
+								{
+									"key": "status",
+									"value": "active"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Short-Term Gold Calls",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/calls?tradeType=short_term&commodity=Gold&page=1&limit=10",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"calls"
+							],
+							"query": [
+								{
+									"key": "tradeType",
+									"value": "short_term"
+								},
+								{
+									"key": "commodity",
+									"value": "Gold"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Calls with Date Range",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/calls?tradeType=short_term&startDate=2026-01-01&endDate=2026-01-31&page=1&limit=10",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"calls"
+							],
+							"query": [
+								{
+									"key": "tradeType",
+									"value": "short_term"
+								},
+								{
+									"key": "startDate",
+									"value": "2026-01-01"
+								},
+								{
+									"key": "endDate",
+									"value": "2026-01-31"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Call by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/calls/:callId",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"calls",
+								":callId"
+							],
+							"variable": [
+								{
+									"key": "callId",
+									"value": "YOUR_CALL_ID_HERE"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Admin - Update Calls",
+			"item": [
+				{
+					"name": "Update Call - Change to Short Term",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_access_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"tradeType\": \"short_term\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/calls/:callId",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"calls",
+								":callId"
+							],
+							"variable": [
+								{
+									"key": "callId",
+									"value": "YOUR_CALL_ID_HERE"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Call - Change to Intraday",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_access_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"tradeType\": \"intraday\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/calls/:callId",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"calls",
+								":callId"
+							],
+							"variable": [
+								{
+									"key": "callId",
+									"value": "YOUR_CALL_ID_HERE"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Call - Status to Hit Target",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_access_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"hit_target\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/calls/:callId",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"calls",
+								":callId"
+							],
+							"variable": [
+								{
+									"key": "callId",
+									"value": "YOUR_CALL_ID_HERE"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Call - Full Update",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_access_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"commodity\": \"Gold\",\n  \"type\": \"buy\",\n  \"entryPrice\": 62600,\n  \"targetPrices\": [\n    {\n      \"price\": 62900,\n      \"label\": \"Target 1\",\n      \"order\": 1\n    },\n    {\n      \"price\": 63100,\n      \"label\": \"Target 2\",\n      \"order\": 2\n    }\n  ],\n  \"stopLoss\": 62300,\n  \"analysis\": \"Updated analysis: Strong bullish momentum\",\n  \"status\": \"active\",\n  \"tradeType\": \"short_term\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/calls/:callId",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"calls",
+								":callId"
+							],
+							"variable": [
+								{
+									"key": "callId",
+									"value": "YOUR_CALL_ID_HERE"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Admin - Delete Calls",
+			"item": [
+				{
+					"name": "Delete Call by ID",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/calls/:callId",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"calls",
+								":callId"
+							],
+							"variable": [
+								{
+									"key": "callId",
+									"value": "YOUR_CALL_ID_HERE"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "User - Get Calls",
+			"item": [
+				{
+					"name": "Get Today's Calls (All Types)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{user_access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/calls",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"calls"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Today's Intraday Calls",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{user_access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/calls?tradeType=intraday",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"calls"
+							],
+							"query": [
+								{
+									"key": "tradeType",
+									"value": "intraday"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Today's Short-Term Calls",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{user_access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/calls?tradeType=short_term",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"calls"
+							],
+							"query": [
+								{
+									"key": "tradeType",
+									"value": "short_term"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Call History (All)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{user_access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/calls/history?page=1&limit=10",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"calls",
+								"history"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Intraday Call History",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{user_access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/calls/history?tradeType=intraday&page=1&limit=10",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"calls",
+								"history"
+							],
+							"query": [
+								{
+									"key": "tradeType",
+									"value": "intraday"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Short-Term Call History",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{user_access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/calls/history?tradeType=short_term&page=1&limit=10",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"calls",
+								"history"
+							],
+							"query": [
+								{
+									"key": "tradeType",
+									"value": "short_term"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Call Stats",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{user_access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/calls/history/stats",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"calls",
+								"history",
+								"stats"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Stats by Commodity",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{user_access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/calls/history/stats/by-commodity",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"calls",
+								"history",
+								"stats",
+								"by-commodity"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Call by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{user_access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/calls/:callId",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"calls",
+								":callId"
+							],
+							"variable": [
+								{
+									"key": "callId",
+									"value": "YOUR_CALL_ID_HERE"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:5000",
+			"type": "string"
+		}
+	]
+}

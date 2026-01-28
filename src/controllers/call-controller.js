@@ -18,7 +18,8 @@ export const createCall = catchAsync(async (req, res) => {
     stopLoss, 
     analysis, 
     date, 
-    status 
+    status,
+    tradeType
   } = req.body;
   
   const adminId = req.adminId;
@@ -33,6 +34,7 @@ export const createCall = catchAsync(async (req, res) => {
     analysis,
     date: new Date(date),
     status: status || 'active',
+    tradeType: tradeType || 'intraday',
     createdBy: adminId,
   });
 
@@ -48,7 +50,7 @@ export const createCall = catchAsync(async (req, res) => {
  */
 export const getAllCalls = catchAsync(async (req, res) => {
   const { page, limit, skip } = parsePagination(req.query);
-  const { commodity, status, type, startDate, endDate, sortBy, sortOrder } = req.query;
+  const { commodity, status, type, tradeType, startDate, endDate, sortBy, sortOrder } = req.query;
 
   // Build filter
   const filter = {};
@@ -63,6 +65,10 @@ export const getAllCalls = catchAsync(async (req, res) => {
 
   if (type) {
     filter.type = type;
+  }
+
+  if (tradeType) {
+    filter.tradeType = tradeType;
   }
 
   if (startDate || endDate) {
@@ -171,6 +177,8 @@ export const deleteCall = catchAsync(async (req, res) => {
  * GET /api/calls
  */
 export const getTodayCalls = catchAsync(async (req, res) => {
+  const { tradeType } = req.query;
+  
   // IST Midnight check
   const todayIST = moment.tz('Asia/Kolkata').startOf('day');
   const nowIST = moment.tz('Asia/Kolkata');
@@ -180,9 +188,15 @@ export const getTodayCalls = catchAsync(async (req, res) => {
   // The requirement: "After 12 means admin added a call ... not seen ... after 12AM in night"
   // So we only show calls where date >= start of today IST.
   
-  const calls = await Call.find({
+  const filter = {
     date: { $gte: todayIST.toDate() },
-  })
+  };
+  
+  if (tradeType) {
+    filter.tradeType = tradeType;
+  }
+  
+  const calls = await Call.find(filter)
     .sort({ createdAt: -1 })
     .select('-__v -createdBy');
 
@@ -215,11 +229,15 @@ export const getTodayCalls = catchAsync(async (req, res) => {
  */
 export const getCallHistory = catchAsync(async (req, res) => {
   const { page, limit, skip } = parsePagination(req.query);
-  const { commodity, startDate, endDate } = req.query;
+  const { commodity, tradeType, startDate, endDate } = req.query;
 
   const filter = {};
   if (commodity) {
     filter.commodity = commodity;
+  }
+  
+  if (tradeType) {
+    filter.tradeType = tradeType;
   }
 
   // Default range: last 7 days
